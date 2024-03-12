@@ -72,11 +72,14 @@ def get_tokenizer(args):
 
 def load_dataset_splits(args):
     if args.mode == 'pt':
-        dataset = datasets.load_dataset(
-            'c4',
-            'en',
-            streaming=True,
-        )
+        # dataset = datasets.load_dataset(
+        #     'allenai/c4',
+        #     'en.realnewslike',
+        #     streaming=True,
+        # )
+        data_files = {'train': '/home/sjw/ljb/nanoT5/c4/realnewslike/*.json.gz',
+                      'validation': '/home/sjw/ljb/nanoT5/c4/realnewslike/c4-validation.00000-of-00001.json.gz'}
+        dataset = datasets.load_dataset('json', data_files=data_files, streaming=True)
 
         dataset = dataset.remove_columns(
             ['timestamp', 'url']
@@ -86,10 +89,10 @@ def load_dataset_splits(args):
             'train': dataset['train'],
             'test': dataset['validation'],
         }
-
-        assert (
-            dataset['train'].n_shards == 1024
-        ), "We want to have many shards for efficient processing with num_workes in PyTorch dataloader"
+ 
+        # assert (
+        #     dataset['train'].n_shards == 1024
+        # ), "We want to have many shards for efficient processing with num_workes in PyTorch dataloader"
     elif args.mode == 'ft':
         dataset_splits = datasets.load_dataset(
             args.data.exec_file_path,

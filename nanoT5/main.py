@@ -4,7 +4,16 @@ import hydra
 import torch
 import time
 
-from .utils import (
+import sys
+sys.path.append('/home/sjw/ljb/nanoT5/nanoT5')
+
+
+"""解耦
+1. 将训练、预测、评估等功能解耦;
+2. 将模型、优化器、学习率调度器、数据加载器等模块解耦;
+3. 将配置文件、数据加载解耦;
+"""
+from utils import (
     setup_basics,
     train,
     predict,
