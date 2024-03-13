@@ -19,11 +19,14 @@ from .t5_model import MyT5
 
 
 def get_model(args, config):
+    # 这里klass定义了一个字典，有两个键值对，分别是'hf_t5'和'local_t5'，对应的值分别是T5ForConditionalGeneration和MyT5
+    # 然后根据args.model.klass的值来选择对应的模型
     klass = {
         'hf_t5': T5ForConditionalGeneration,
         'local_t5': MyT5,
     }[args.model.klass]
 
+    # 初始化模型参数: 1. 从checkpoint_path加载模型参数; 2. 随机初始化模型参数; 3. 从HuggingFace加载模型参数
     if args.model.checkpoint_path:
         model = klass(config)
         model.load_state_dict(torch.load(args.model.checkpoint_path))
@@ -72,27 +75,36 @@ def get_tokenizer(args):
 
 def load_dataset_splits(args):
     if args.mode == 'pt':
-        # dataset = datasets.load_dataset(
-        #     'allenai/c4',
-        #     'en.realnewslike',
-        #     streaming=True,
-        # )
-        data_files = {'train': '/home/sjw/ljb/nanoT5/c4/realnewslike/*.json.gz',
-                      'validation': '/home/sjw/ljb/nanoT5/c4/realnewslike/c4-validation.00000-of-00001.json.gz'}
-        dataset = datasets.load_dataset('json', data_files=data_files, streaming=True)
+        if args.data.corpus == 'c4':
+            # dataset = datasets.load_dataset(
+            #     'allenai/c4',
+            #     'en.realnewslike',
+            #     streaming=True,
+            # )
+            data_files = {'train': '/home/sjw/ljb/nanoT5/c4/realnewslike/*.json.gz',
+                        'validation': '/home/sjw/ljb/nanoT5/c4/realnewslike/c4-validation.00000-of-00001.json.gz'}
+            dataset = datasets.load_dataset('json', data_files=data_files, streaming=True)
 
-        dataset = dataset.remove_columns(
-            ['timestamp', 'url']
-        )
+            dataset = dataset.remove_columns(
+                ['timestamp', 'url']
+            )
 
-        dataset_splits = {
-            'train': dataset['train'],
-            'test': dataset['validation'],
-        }
- 
-        # assert (
-        #     dataset['train'].n_shards == 1024
-        # ), "We want to have many shards for efficient processing with num_workes in PyTorch dataloader"
+            dataset_splits = {
+                'train': dataset['train'],
+                'test': dataset['validation'],
+            }
+    
+            # assert (
+            #     dataset['train'].n_shards == 1024
+            # ), "We want to have many shards for efficient processing with num_workes in PyTorch dataloader"
+        elif args.data.corpus == 'cj_mono':
+            dataset = datasets.load_dataset('text', data_dir='/home/sjw/ljb/cangjie_data/cangjie/', sample_by="document")
+            dataset = datasets.concatenate_datasets([dataset['train'], dataset['validation'], dataset['test']])
+            dataset_splits = dataset.train_test_split(test_size=0.05, seed=args.seed)
+        elif args.data.corpus == 'cj_java_mix':
+            raise NotImplementedError
+        else:
+            raise NotImplementedError
     elif args.mode == 'ft':
         dataset_splits = datasets.load_dataset(
             args.data.exec_file_path,
@@ -122,6 +134,9 @@ def process_dataset(dataset_splits, args, tokenizer):
                 mean_noise_span_length=args.data.mean_noise_span_length,
             )
 
+            # 这一段代码的作用就是把 before_mask_input_length 和 target_length 两个新计算出来的参数加入到 args.data 中
+            # {'input_length': 512, 'mlm_probability': 0.15, 'mean_noise_span_length': 3.0, 'num_workers': 8} --->
+            # {'input_length': 512, 'mlm_probability': 0.15, 'mean_noise_span_length': 3.0, 'num_workers': 8, 'before_mask_input_length': 568, 'target_length': 114}
             with open_dict(args):
                 args.data.before_mask_input_length = before_mask_input_length
                 args.data.target_length = target_length
@@ -136,7 +151,10 @@ def process_dataset(dataset_splits, args, tokenizer):
                 remove_columns=['text'],
             )
 
-            dataset_split = dataset_split.shuffle(buffer_size=10_000, seed=args.seed)
+            if isinstance(dataset_split, IterableDataset):
+                dataset_split = dataset_split.shuffle(seed=args.seed, buffer_size=10_000)
+            else:
+                dataset_split = dataset_split.shuffle(seed=args.seed)
             final_datasets[split] = dataset_split
     elif args.mode == 'ft':
         final_datasets = dataset_splits
@@ -190,16 +208,16 @@ def get_dataloaders(tokenizer, config, args):
     for split in ['train', 'test']:
         batch_size = args.optim.batch_size // args.optim.grad_acc
 
-        shuffle = (split == 'train') and not is_iterable
+        # shuffle = (split == 'train') and not is_iterable
 
-        if args.mode == 'ft' and split == 'train':
-            assert shuffle is True
-        else:
-            assert shuffle is False
+        # if args.mode == 'ft' and split == 'train':
+        #     assert shuffle is True
+        # else:
+        #     assert shuffle is False
 
         dataloaders[split] = DataLoader(
             dataset[split],
-            shuffle=shuffle,
+            shuffle=True,
             collate_fn=data_collator,
             batch_size=batch_size,
             num_workers=args.data.num_workers,
