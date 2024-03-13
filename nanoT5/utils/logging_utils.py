@@ -7,6 +7,7 @@ import datasets
 import transformers
 import neptune
 import os
+import wandb
 
 
 class Averager:
@@ -52,6 +53,8 @@ class Logger:
             datasets.utils.logging.set_verbosity_error()
             transformers.utils.logging.set_verbosity_error()
 
+        if accelerator.is_local_main_process:
+            self.setup_wandb(args)
         self.setup_neptune(args)
 
     def setup_neptune(self, args):
@@ -70,6 +73,22 @@ class Logger:
             if neptune_logger is not None:
                 args.neptune_id = neptune_logger["sys/id"].fetch()
 
+    def setup_wandb(self, args):
+        if args.logging.wandb:
+            model_name = args.model.name.replace("/", "-")
+            proj_title = "nanoT5-{}-{}".format(model_name, args.data.corpus)
+            run_title = "optimizer-{}-lr-{}-bs-{}-grad_acc-{}".format(
+                args.optim.name, args.optim.base_lr, args.optim.batch_size, args.optim.grad_acc
+            )
+            wandb_logger = wandb.init(
+                project=proj_title,
+                name=run_title,
+            )
+        else:
+            wandb_logger = None
+
+        self.wandb_logger = wandb_logger
+
     def log_args(self, args):
         if self.neptune_logger is not None:
             logging_args = OmegaConf.to_container(args, resolve=True)
@@ -79,6 +98,9 @@ class Logger:
         if self.neptune_logger is not None:
             for k, v in stats.items():
                 self.neptune_logger[f'{prefix}{k}'].log(v, step=step)
+
+        if self.wandb_logger is not None:
+            wandb.log({f'{prefix}{k}': v for k, v in stats.items()}, step=step)
 
         msg_start = f'[{prefix[:-1]}] Step {step} out of {args.optim.total_steps}' + ' | '
         dict_msg = ' | '.join([f'{k.capitalize()} --> {v:.3f}' for k, v in stats.items()]) + ' | '
@@ -93,3 +115,6 @@ class Logger:
     def finish(self):
         if self.neptune_logger is not None:
             self.neptune_logger.stop()
+
+        if self.wandb_logger is not None:
+            wandb.finish()
