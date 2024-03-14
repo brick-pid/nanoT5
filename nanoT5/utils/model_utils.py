@@ -102,7 +102,15 @@ def load_dataset_splits(args):
             dataset = datasets.concatenate_datasets([dataset['train'], dataset['validation'], dataset['test']])
             dataset_splits = dataset.train_test_split(test_size=0.05, seed=args.seed)
         elif args.data.corpus == 'cj_java_mix':
-            raise NotImplementedError
+            dataset = datasets.load_dataset('text', data_dir='/home/sjw/ljb/cangjie_data/cangjie/', sample_by="document")
+            dataset = datasets.concatenate_datasets([dataset['train'], dataset['validation'], dataset['test']])
+            dataset_splits = dataset.train_test_split(test_size=0.05, seed=args.seed)
+            
+            java = datasets.load_dataset('code_search_net', 'java', split=f'train[:{args.data.mix_ratio}%]')
+            java = java.select_columns(['func_code_string'])
+            java = java.rename_column('func_code_string', 'text')
+
+            dataset_splits['train'] = datasets.concatenate_datasets([dataset_splits['train'], java]).shuffle(seed=args.seed)
         else:
             raise NotImplementedError
     elif args.mode == 'ft':
