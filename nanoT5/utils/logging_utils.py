@@ -76,9 +76,14 @@ class Logger:
     def setup_wandb(self, args):
         if args.logging.wandb:
             model_name = args.model.name.replace("/", "-")
-            proj_title = "nanoT5-{}-{}".format(model_name, args.data.corpus)
-            run_title = "optimizer-{}-lr-{}-bs-{}-grad_acc-{}".format(
-                args.optim.name, args.optim.base_lr, args.optim.batch_size, args.optim.grad_acc
+            proj_title = "nanoT5-pretrain"
+            run_title = "model-{}-corpus-{}-mix-{}-optimizer-{}-lr-{}-bs-{}-grad_acc-{}".format(args.model.name, 
+                                                                                         args.data.corpus, 
+                                                                                         args.data.mix_ratio,
+                                                                                         args.optim.name, 
+                                                                                         args.optim.base_lr, 
+                                                                                         args.optim.batch_size, 
+                                                                                         args.optim.grad_acc
             )
             wandb_logger = wandb.init(
                 project=proj_title,
