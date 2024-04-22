@@ -111,6 +111,9 @@ def load_dataset_splits(args):
             java = java.rename_column('func_code_string', 'text')
 
             dataset_splits['train'] = datasets.concatenate_datasets([dataset_splits['train'], java]).shuffle(seed=args.seed)
+
+            # # for debug, set train_dataset to 1% of original size
+            # dataset_splits['train'] = dataset_splits['train'].shard(num_shards=100, index=0)
         else:
             raise NotImplementedError
     elif args.mode == 'ft':
