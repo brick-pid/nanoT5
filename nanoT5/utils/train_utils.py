@@ -1,3 +1,4 @@
+import os
 import torch
 import time
 import evaluate
@@ -13,6 +14,17 @@ def maybe_save_checkpoint(accelerator, args):
         output_dir = f'checkpoint-{args.mode}-{args.current_train_step}'
         accelerator.save_state(output_dir=output_dir)
 
+def maybe_save_model(model, accelerator, args, tokenizer):
+    if args.current_train_step > args.optim.total_steps:
+        short_model_name = args.model.name.split('/')[-1]
+        output_dir = f'./results/{args.mode}-{short_model_name}-{args.current_train_step}-lr{args.optim.base_lr}-bs{args.optim.batch_size}'
+
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+        
+        unwrapped_model = accelerator.unwrap_model(model)
+        unwrapped_model.save_pretrained(output_dir)
+        tokenizer.save_pretrained(output_dir)
 
 def maybe_eval_predict(model, dataloader, logger, args, tokenizer):
     if (
@@ -209,3 +221,4 @@ def train(model, train_dataloader, test_dataloader, accelerator, lr_scheduler,
 
     maybe_eval_predict(model, test_dataloader, logger, args, tokenizer)
     maybe_save_checkpoint(accelerator, args)
+    maybe_save_model(model, accelerator, args, tokenizer)
