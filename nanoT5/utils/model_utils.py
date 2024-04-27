@@ -97,10 +97,18 @@ def load_dataset_splits(args):
             # assert (
             #     dataset['train'].n_shards == 1024
             # ), "We want to have many shards for efficient processing with num_workes in PyTorch dataloader"
+        elif args.data.corpus == 'cj_function':
+            path_to_jsonl = '/home/sjw/ljb/cangjie_data/cj_functions.jsonl'
+            dataset = datasets.load_dataset('json', data_files={'train': path_to_jsonl}, split='train')
+            # rename 'cj' to 'text' for common process
+            dataset = dataset.rename_column('cj', 'text')
+            dataset_splits = dataset.train_test_split(test_size=0.05, seed=args.seed)
+
         elif args.data.corpus == 'cj_mono':
             dataset = datasets.load_dataset('text', data_dir='/home/sjw/ljb/cangjie_data/cangjie/', sample_by="document")
             dataset = datasets.concatenate_datasets([dataset['train'], dataset['validation'], dataset['test']])
             dataset_splits = dataset.train_test_split(test_size=0.05, seed=args.seed)
+            
         elif args.data.corpus == 'cj_java_mix':
             dataset = datasets.load_dataset('text', data_dir='/home/sjw/ljb/cangjie_data/cangjie/', sample_by="document")
             dataset = datasets.concatenate_datasets([dataset['train'], dataset['validation'], dataset['test']])
@@ -131,21 +139,22 @@ def load_dataset_splits(args):
 
 
 def process_dataset(dataset_splits, args, tokenizer):
+    """
+    We increase the input_length, because instead of masking tokens T5 replaces
+    masked spans with a single token, therefore to avoid padding we need to have
+    longer sequences at the start, before masking
+    """
     if args.mode == 'pt':
         final_datasets = {}
 
         for split, dataset_split in dataset_splits.items():
-
-            # We increase the input_length, because instead of masking tokens T5 replaces
-            # masked spans with a single token, therefore to avoid padding we need to have
-            # longer sequences at the start, before masking
             before_mask_input_length, target_length = compute_input_and_target_lengths(
                 inputs_length=args.data.input_length,
                 noise_density=args.data.mlm_probability,
                 mean_noise_span_length=args.data.mean_noise_span_length,
             )
 
-            # 这一段代码的作用就是把 before_mask_input_length 和 target_length 两个新计算出来的参数加入到 args.data 中
+            # 把 before_mask_input_length 和 target_length 两个新计算出来的参数加入到 args.data 中
             # {'input_length': 512, 'mlm_probability': 0.15, 'mean_noise_span_length': 3.0, 'num_workers': 8} --->
             # {'input_length': 512, 'mlm_probability': 0.15, 'mean_noise_span_length': 3.0, 'num_workers': 8, 'before_mask_input_length': 568, 'target_length': 114}
             with open_dict(args):

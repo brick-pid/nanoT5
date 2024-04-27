@@ -1,6 +1,7 @@
 defaults:
   - _self_
   - task: pt
+  - data: cj_function
   - local_env: default
 
 # Experiment args
@@ -27,9 +28,14 @@ data:
   mlm_probability: 0.15
   mean_noise_span_length: 3.0
   num_workers: 8
-  corpus: 'cj_mono'  # possible value: 'cj_mono', 'cj_java_mix', 'cj_rust_mix'
-  cj_dir: '/home/sjw/ljb/cangjie_data'
+  corpus: 'cj_mono'  # possible value: 'cj_mono', 'cj_java_mix', 'cj_rust_mix'. 'cj_function'
   mix_ratio: 13
+  kw_file: '/home/sjw/ljb/nanoT5/nanoT5/utils/keywords.txt'
+
+objective:
+  # 和训练目标有关的配置
+  span_masking_type: random_masking # random_masking, kw_masking
+
 
 optim:
   name: adamwscale

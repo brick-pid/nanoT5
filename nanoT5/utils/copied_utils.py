@@ -356,6 +356,11 @@ class AdamWScale(Optimizer):
 
 
 def tokenize_function(examples, tokenizer, in_length):
+    """
+    Tokenize list of examples, generate a averaged fixed-length array of input_ids.
+    returns:
+        - dict: {"input_ids": 2-dim numpy array of averaged fix length}
+    """
     tokenizer_out = tokenizer(
         text=examples["text"],
         return_attention_mask=False,
